@@ -8,7 +8,7 @@ const bodyParser = require('body-parser')
 const cookieParser = require('cookie-parser')
 const cors = require('cors')
 const expressValidator = require('express-validator')
-
+const path = require('path')
 
 //bring routes
 const postRoutes = require('./routes/post')
@@ -18,9 +18,9 @@ const userRoutes = require('./routes/user')
 
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
-    useUnifiedTopology: true 
+    useUnifiedTopology: true
 })
-.then(() => console.log('DB connected!!'))
+    .then(() => console.log('DB connected!!'))
 
 mongoose.connection.on('error', err => {
     console.log(`DB connection error: ${err.message}`)
@@ -40,11 +40,18 @@ app.use('/api', userRoutes)
 
 app.use(function (err, req, res, next) {
     if (err.name === 'UnauthorizedError') {
-      res.status(401).json({
-          error: 'Unauthorized'
-      })
+        res.status(401).json({
+            error: 'Unauthorized'
+        })
     }
-  });
+});
+
+
+//for Heroku!!
+app.use(express.static('frontend/build'))
+app.get('*', (req, res) => {
+    res.sendFile(path.resolve(__dirname, 'frontend', 'build', 'index.html'))
+})
 
 const port = process.env.PORT || 5000
 
