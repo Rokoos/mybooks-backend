@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const expressJwt = require("express-jwt");
+const sgMail = require("@sendgrid/mail");
 require("dotenv").config();
 const User = require("../models/user");
 
@@ -14,6 +15,20 @@ exports.signup = async (req, res) => {
 
   const user = await new User(req.body);
   await user.save();
+
+  sgMail.setApiKey(process.env.SENGRID_API_KEY);
+
+  const msgToUser = {
+    to: req.body.email,
+    from: "aviationbookz@gmail.com",
+    subject: "Witamy w serwisie aviationbookz!",
+    text: `Witaj ${req.body.name}. Twoje konto zostało pomyślnie zarejestrowane w naszym serwisie. Możesz sie zalogować i dodawać swoje ulubione książki poświęcone lotnictwu i/lub komentować posty innych użytkowników.`,
+  };
+
+  sgMail
+    .send(msgToUser)
+    .then((response) => console.log("Email to user send..."))
+    .catch((error) => console.log(error));
 
   res.json({ message: "Signup success!Please login." });
 };

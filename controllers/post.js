@@ -3,6 +3,8 @@ const _ = require("lodash");
 const Post = require("../models/post");
 const Comment = require("../models/comment");
 const formidable = require("formidable");
+const sgMail = require("@sendgrid/mail");
+require("dotenv").config();
 
 exports.postById = async (req, res, next, id) => {
   // Comment.find({ postId: id }, { new: true }).sort({ createdAt: -1 });
@@ -21,7 +23,7 @@ exports.postById = async (req, res, next, id) => {
       .populate("postedBy", "_id name visible")
       // .populate("comments.postedBy", "_id name visible")
       // .populate("comments")
-      .populate("postedBy", "_id name visible")
+      .populate("postedBy", "_id name visible email")
       // .select("_id author title body createdAt likes comments photo")
       .select("_id author title body createdAt likes  photo")
       .sort({ createdAt: -1 })
@@ -65,12 +67,22 @@ const filteringProducts = (obj) => {
 
   if (filters.text && filters.category) {
     return {
-      $text: { $search: filters.text },
+      // $text: { $search: filters.text },
+      // category: filters.category,
+      $or: [
+        { author: { $regex: filters.text, $options: "i" } },
+        { title: { $regex: filters.text, $options: "i" } },
+      ],
       category: filters.category,
     };
   } else if (filters.text && !filters.category) {
     return {
-      $text: { $search: filters.text },
+      // $text: { $search: filters.text },
+      // $text: { $search: filters.text },
+      $or: [
+        { author: { $regex: filters.text, $options: "i" } },
+        { title: { $regex: filters.text, $options: "i" } },
+      ],
     };
   } else if (!filters.text && filters.category) {
     return {
@@ -95,7 +107,6 @@ exports.getFilteredPosts = async (req, res) => {
 
     const numberOfPages = Math.ceil(filteredCollection.length / limit);
 
-    // console.log("numberOfPages", numberOfPages);
     results.numberOfPages = numberOfPages;
     results.numberOfRecords = filteredCollection.length;
 
@@ -129,7 +140,6 @@ exports.getFilteredPosts = async (req, res) => {
 };
 
 exports.getPosts = async (req, res) => {
-  // const page = parseInt(req.query.page);
   const limit = 20;
 
   try {
@@ -139,46 +149,6 @@ exports.getPosts = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
-
-  // const startIndex = (page - 1) * limit;
-  // const endIndex = page * limit;
-
-  // let results = {};
-
-  // try {
-  //   const collectionLength = await Post.countDocuments().exec();
-  //   const numberOfPages = Math.ceil(collectionLength / limit);
-  //   results.numberOfPages = numberOfPages;
-  //   results.numberOfRecords = collectionLength;
-
-  //   results.results = await Post.find()
-  //     .limit(limit)
-  //     .skip(startIndex)
-  //     .populate("postedBy", " _id name visible")
-  //     .populate("comments")
-  //     .select("_id author title body created likes category")
-  //     .sort({ created: -1 })
-  //     .exec();
-
-  //   if (startIndex > 0) {
-  //     results.previous = {
-  //       page: page - 1,
-  //       limit: limit,
-  //     };
-  //   }
-
-  //   if (endIndex < collectionLength) {
-  //     results.next = {
-  //       page: page + 1,
-  //       limit: limit,
-  //     };
-  //   }
-
-  //   res.json(results);
-  //   // console.log("results", results);
-  // } catch (error) {
-  //   res.status(500).json({ message: error.message });
-  // }
 };
 
 exports.createPost = (req, res) => {
@@ -211,69 +181,7 @@ exports.createPost = (req, res) => {
   });
 };
 
-///////////////////////////////////////////////
-
-// exports.postsByUser = async (req, res) => {
-//   console.log("page", typeof req.query.page);
-
-//   const page = parseInt(req.query.page);
-//   const limit = 1;
-
-//   const startIndex = (page - 1) * limit;
-//   const endIndex = page * limit;
-
-//   let results = {};
-
-//   try {
-//     const userBooks = await Post.find({ postedBy: req.profile._id }).exec();
-
-//     const numberOfPages = Math.ceil(userBooks.length / limit);
-
-//     console.log("numberOfPages", numberOfPages);
-//     results.numberOfPages = numberOfPages;
-
-//     results.results = await Post.find({ postedBy: req.profile._id })
-//       .limit(limit)
-//       .skip(startIndex)
-//       .populate("postedBy", "_id name visible")
-//       .populate("comments")
-//       .select("_id author title body created likes")
-//       .sort("-created");
-
-//     if (startIndex > 0) {
-//       results.previous = {
-//         page: page - 1,
-//         limit: limit,
-//       };
-//     }
-
-//     if (endIndex < userBooks.length) {
-//       results.next = {
-//         page: page + 1,
-//         limit: limit,
-//       };
-//     }
-
-//     res.json(results);
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-
-//   // Post.find({ postedBy: req.profile._id })
-//   //   .populate("postedBy", "_id name visible")
-//   //   .populate("comments")
-//   //   .select("_id author title body created likes")
-//   //   .sort("-created")
-//   //   .exec((err, posts) => {
-//   //     if (err) {
-//   //       return res.status(400).json({
-//   //         error: err,
-//   //       });
-//   //     }
-
-//   //     res.json(posts);
-//   //   });
-// };
+/////////////////////////////////
 
 exports.isPoster = (req, res, next) => {
   let isPoster = req.post && req.auth && req.post.postedBy._id == req.auth._id;
@@ -376,7 +284,16 @@ exports.unlike = (req, res) => {
 
 exports.comment = async (req, res) => {
   try {
-    const { userId, postId, postUserId, text } = req.body;
+    const {
+      userId,
+      userName,
+      postId,
+      postTitle,
+      postUserId,
+      postUserEmail,
+      text,
+    } = req.body;
+
     let comm = {
       commentedBy: userId,
       postId,
@@ -393,38 +310,28 @@ exports.comment = async (req, res) => {
       .sort({ createdAt: -1 })
       .exec();
 
+    sgMail.setApiKey(process.env.SENGRID_API_KEY);
+
+    const msgToPostUser = {
+      to: postUserEmail,
+      from: "aviationbookz@gmail.com",
+      subject: "Dodano komentarz do Twojego postu.",
+      text: `Użytkownik ${userName} skomentował Twój post dotyczący książki pod tytułem ${postTitle}`,
+    };
+
+    sgMail
+      .send(msgToPostUser)
+      .then((response) => console.log("Email to postUser send..."))
+      .catch((error) => console.log(error));
+
     res.json({ message: "Dodano komentarz!", comments });
   } catch (error) {
     res.status(400).json({ message: "Something went wrong!!" });
   }
-
-  // let comment = req.body.text;
-  // console.log("req", req.body);
-  // comment.postedBy = req.body.userId;
-
-  // Post.findByIdAndUpdate(
-  //   req.body.postId,
-  //   { $push: { comments: comment } },
-  //   { new: true }
-  // )
-  //   .populate("comments.postedBy", "_id name visible")
-  //   .populate("postedBy", "_id name visible")
-  //   .exec((err, result) => {
-  //     if (err) {
-  //       return res.status(400).json({
-  //         error: err,
-  //       });
-  //     } else {
-  //       res.json(result);
-  //     }
-  //   });
 };
 
 exports.uncomment = async (req, res) => {
-  // console.log("req.body", req.body);
-  // let comment = req.body;
   const { _id, postId } = req.body;
-  // console.log("postId", postId);
 
   try {
     const deletedComment = await Comment.findOneAndDelete({ _id });
@@ -433,28 +340,8 @@ exports.uncomment = async (req, res) => {
       .select("_id text commentedBy postId createdAt")
       .sort({ createdAt: -1 })
       .exec();
-    // console.log("comments", comments);
     res.json(comments);
   } catch (error) {
     res.status(400).json({ message: "Something went wrong" });
   }
-
-  // const deletedComms = await Comment.deleteMany({});
-
-  // Post.findByIdAndUpdate(
-  //   req.body.postId,
-  //   { $pull: { comments: { _id: comment._id } } },
-  //   { new: true }
-  // )
-  //   .populate("comments.postedBy", "_id name visible")
-  //   .populate("postedBy", "_id name visible")
-  //   .exec((err, result) => {
-  //     if (err) {
-  //       return res.status(400).json({
-  //         error: err,
-  //       });
-  //     } else {
-  //       res.json(result);
-  //     }
-  //   });
 };

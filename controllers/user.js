@@ -47,8 +47,8 @@ exports.allUsers = async (req, res) => {
     results.results = await User.find({ role: "user" })
       .limit(limit)
       .skip(startIndex)
-      .select("name email ")
-      .sort({ created: -1 })
+      .select("name email createdAt")
+      .sort({ createdAt: -1 })
       .exec();
 
     if (startIndex > 0) {
@@ -159,32 +159,16 @@ exports.userPhoto = (req, res) => {
 
 exports.deleteUser = async (req, res) => {
   const userId = req.params.userId;
-  // console.log("req.params", req.params);
-  // const userId = "61ae937986695800042e4ef2";
 
   try {
     const deletedUserComms = await Comment.deleteMany({
       $or: [{ commentedBy: userId }, { postUserId: userId }],
     });
-    // const deletedUserPostCommms = await Comment.deleteMany({
-    //   postUserId: userId,
-    // });
+
     const deletedPosts = await Post.deleteMany({ postedBy: userId });
     const deleteduser = await User.deleteOne({ _id: userId });
     res.json({ message: "User deleted successfully!!" });
   } catch (error) {
     res.status(400).json({ error });
   }
-  // const deletedPosts = await Post
-  // let user = req.profile;
-  // user.visible = 0;
-  // user.save((err, result) => {
-  //   if (err) {
-  //     return res.status(400).json({
-  //       error: err,
-  //     });
-  //   }
-
-  //   res.json({ message: "User deleted successfully." });
-  // });
 };
