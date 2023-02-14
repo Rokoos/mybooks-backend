@@ -6,26 +6,18 @@ const formidable = require("formidable");
 const sgMail = require("@sendgrid/mail");
 require("dotenv").config();
 
-exports.postById = async (req, res, next, id) => {
-  // Comment.find({ postId: id }, { new: true }).sort({ createdAt: -1 });
-  // exec((err, comments) => {
-  //   req.comments = comments;
-  // });
+///////////////////////////////////////////////////////////
 
+exports.postById = async (req, res, next, id) => {
   try {
     const comms = await Comment.find({ postId: id }, { new: true })
       .populate("commentedBy", "_id name visible")
       .select("_id text commentedBy postId postUserId createdAt")
       .sort({ createdAt: -1 })
       .exec();
-    // console.log("comms", comms);
     const post = await Post.findById(id)
-      .populate("postedBy", "_id name visible")
-      // .populate("comments.postedBy", "_id name visible")
-      // .populate("comments")
-      .populate("postedBy", "_id name visible email")
-      // .select("_id author title body createdAt likes comments photo")
-      .select("_id author title body createdAt likes  photo")
+      .populate("postedBy", "_id name email")
+      .select("_id author title body createdAt likes category  photo")
       .sort({ createdAt: -1 })
       .exec();
 
@@ -35,26 +27,9 @@ exports.postById = async (req, res, next, id) => {
   } catch (error) {
     return res.status(400).json({ error });
   }
-  // Post.findById(id)
-  //   .populate("postedBy", "_id name visible")
-  //   // .populate("comments.postedBy", "_id name visible")
-  //   // .populate("comments")
-  //   .populate("postedBy", "_id name visible")
-  //   // .select("_id author title body created likes comments photo")
-  //   .select("_id author title body created likes  photo")
-  //   .sort({ created: -1 })
-  //   .exec((err, post) => {
-  //     if (err || !post) {
-  //       return res.status(400).json({
-  //         error: err,
-  //       });
-  //     }
-
-  //     req.post = post;
-
-  //     next();
-  //   });
 };
+
+////////////////////////////////////////////////////////////////
 
 const filteringProducts = (obj) => {
   let filters = {};
@@ -67,8 +42,6 @@ const filteringProducts = (obj) => {
 
   if (filters.text && filters.category) {
     return {
-      // $text: { $search: filters.text },
-      // category: filters.category,
       $or: [
         { author: { $regex: filters.text, $options: "i" } },
         { title: { $regex: filters.text, $options: "i" } },
@@ -77,8 +50,6 @@ const filteringProducts = (obj) => {
     };
   } else if (filters.text && !filters.category) {
     return {
-      // $text: { $search: filters.text },
-      // $text: { $search: filters.text },
       $or: [
         { author: { $regex: filters.text, $options: "i" } },
         { title: { $regex: filters.text, $options: "i" } },
@@ -113,7 +84,7 @@ exports.getFilteredPosts = async (req, res) => {
     results.results = await Post.find(filteringProducts(req.body))
       .limit(limit)
       .skip(startIndex)
-      .populate("postedBy", " _id name visible")
+      .populate("postedBy", " _id name")
       .populate("comments")
       .select("_id author title body createdAt likes category")
       .sort({ createdAt: -1 })
@@ -139,6 +110,8 @@ exports.getFilteredPosts = async (req, res) => {
   }
 };
 
+///////////////////////////////////////////////////////////////
+
 exports.getPosts = async (req, res) => {
   const limit = 20;
 
@@ -151,6 +124,8 @@ exports.getPosts = async (req, res) => {
   }
 };
 
+///////////////////////////////////////////////////////////
+
 exports.createPost = (req, res) => {
   let form = new formidable.IncomingForm();
   form.keepExtensions = true;
@@ -160,7 +135,6 @@ exports.createPost = (req, res) => {
         error: "Image could not be uploaded",
       });
     }
-
     let post = new Post(fields);
     req.profile.hashed_password = undefined;
     req.profile.salt = undefined;
@@ -181,7 +155,7 @@ exports.createPost = (req, res) => {
   });
 };
 
-/////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 exports.isPoster = (req, res, next) => {
   let isPoster = req.post && req.auth && req.post.postedBy._id == req.auth._id;
@@ -193,6 +167,8 @@ exports.isPoster = (req, res, next) => {
   }
   next();
 };
+
+////////////////////////////////////////////////////////////////
 
 exports.updatePost = (req, res, next) => {
   let form = new formidable.IncomingForm();
@@ -224,6 +200,8 @@ exports.updatePost = (req, res, next) => {
   });
 };
 
+////////////////////////////////////////////////////////////
+
 exports.deletePost = async (req, res) => {
   let post = req.post;
 
@@ -241,14 +219,20 @@ exports.deletePost = async (req, res) => {
   });
 };
 
+////////////////////////////////////////////////////////////////////
+
 exports.photo = (req, res, next) => {
   res.set("Content-Type", req.post.photo.contentType);
   return res.send(req.post.photo.data);
 };
 
+/////////////////////////////////////////////////////////////////////
+
 exports.singlePost = (req, res) => {
   return res.json({ post: req.post, comments: req.comments });
 };
+
+//////////////////////////////////////////////////////////////////////
 
 exports.like = (req, res) => {
   Post.findByIdAndUpdate(
@@ -266,6 +250,8 @@ exports.like = (req, res) => {
   });
 };
 
+////////////////////////////////////////////////////////////////////
+
 exports.unlike = (req, res) => {
   Post.findByIdAndUpdate(
     req.body.postId,
@@ -281,6 +267,8 @@ exports.unlike = (req, res) => {
     }
   });
 };
+
+///////////////////////////////////////////////////////////////////
 
 exports.comment = async (req, res) => {
   try {
@@ -305,7 +293,7 @@ exports.comment = async (req, res) => {
     await comment.save();
 
     const comments = await Comment.find({ postId }, { new: true })
-      .populate("commentedBy", "_id name visible")
+      .populate("commentedBy", "_id name")
       .select("_id text commentedBy postId createdAt")
       .sort({ createdAt: -1 })
       .exec();
@@ -330,13 +318,15 @@ exports.comment = async (req, res) => {
   }
 };
 
+/////////////////////////////////////////////////////////////////
+
 exports.uncomment = async (req, res) => {
   const { _id, postId } = req.body;
 
   try {
     const deletedComment = await Comment.findOneAndDelete({ _id });
     const comments = await Comment.find({ postId })
-      .populate("commentedBy", "_id name visible")
+      .populate("commentedBy", "_id name")
       .select("_id text commentedBy postId createdAt")
       .sort({ createdAt: -1 })
       .exec();

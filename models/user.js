@@ -33,10 +33,6 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    visible: {
-      type: Number,
-      default: 1,
-    },
   },
   { timestamps: true }
 );

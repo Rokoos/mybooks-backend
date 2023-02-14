@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { createPostValidator, commentValidator } = require("../validator");
+const { commentValidator } = require("../validator");
 
 const { requireSignin } = require("../controllers/auth");
 const { userById } = require("../controllers/user");
@@ -32,12 +32,7 @@ router.put("/post/unlike", requireSignin, unlike);
 router.post("/post/comment", requireSignin, commentValidator, comment);
 router.delete("/post/uncomment", requireSignin, uncomment);
 
-router.post(
-  "/post/new/:userId",
-  requireSignin,
-  createPost,
-  createPostValidator
-);
+router.post("/post/new/:userId", requireSignin, createPost);
 router.get("/post/:postId", singlePost);
 router.put("/post/:postId", requireSignin, isPoster, updatePost);
 router.delete("/post/:postId", requireSignin, isPoster, deletePost);

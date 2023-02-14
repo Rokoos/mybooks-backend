@@ -93,6 +93,7 @@ exports.getUser = async (req, res) => {
 
     results.results = await Post.find({ postedBy: req.profile._id })
       .skip(startIndex)
+      .sort({ createdAt: -1 })
       .limit(limit)
       .exec();
 
